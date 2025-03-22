@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::piece::Piece;
-use super::types::{Position, Tile};
+use super::types::{Position, Tile, PieceType::*};
 
 pub struct Board {
     pub width: usize,
@@ -75,5 +75,38 @@ impl Board {
     pub fn clear_pieces(&mut self) {
         self.pieces.clear();
         self.next_id = 1;
+    }
+
+    /// 將棋盤狀態印出至終端機（除錯用）
+    pub fn print_board(&self) {
+        println!("\n棋盤狀態 (左上為 (0,0)):");
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let symbol = match self.tiles[x][y] {
+                    Tile::Blocked => '#',
+                    Tile::Empty => {
+                        match self.get_piece_at((x, y)) {
+                            Some(p) => piece_symbol(p),
+                            None => '.',
+                        }
+                    }
+                };
+                print!("{} ", symbol);
+            }
+            println!();
+        }
+        println!();
+    }
+}
+
+fn piece_symbol(piece: &Piece) -> char {
+    let base = match piece.kind {
+        King => 'K', Queen => 'Q', Rook => 'R',
+        Bishop => 'B', Knight => 'N', Pawn => 'P',
+        Custom(_) => '?',
+    };
+    match piece.color {
+        super::types::Color::White => base,
+        super::types::Color::Black => base.to_ascii_lowercase(),
     }
 }
