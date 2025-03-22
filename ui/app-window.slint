@@ -1,18 +1,49 @@
-import { Button, VerticalBox } from "std-widgets.slint";
+import { Button } from "std-widgets.slint";
+
+component GridCell inherits Rectangle {
+    in property <string> label;
+
+    border-width: 1px;
+    border-color: #888;
+    background: {
+        if label == "#" {
+            return #333;
+        } else if label == "K" {
+            return #fff;
+        } else if label == "k" {
+            return #444;
+        } else {
+            return #e0e0e0;
+        }
+    }
+
+    Text {
+        text: root.label;
+        color: black;
+        font-size: 20px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
 
 export component AppWindow inherits Window {
-    in-out property <int> counter: 42;
-    callback request-increase-value();
-    VerticalBox {
-        Text {
-            text: "Counter: \{root.counter}";
-        }
+    width: 600px;
+    height: 700px;
+    title: "殘局產生器";
 
-        Button {
-            text: "Increase value";
-            clicked => {
-                root.request-increase-value();
-            }
-        }
+    in property <[string]> board; // 8x8 棋盤文字陣列（每格一字）
+    callback generate();
+
+    for tile[i] in board : GridCell {
+        x: mod(i, 8)*74px;
+        y: floor(i/8)*74px;
+        width: 64px;
+        height: 64px;
+        label: tile;
+    }
+    Button {
+        y: 600px;
+        text: "生成隨機殘局";
+        clicked => { root.generate(); }
     }
 }
