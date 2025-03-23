@@ -42,6 +42,9 @@ impl Board {
 
     /// 新增一個棋子到指定位置，並自動分配 ID
     pub fn add_piece(&mut self, mut piece: Piece) -> u32 {
+        if !self.is_tile_free(piece.pos) {
+            return u32::MAX; // 表示錯誤或無法放置
+        }
         piece.id = self.next_id;
         self.pieces.insert(self.next_id, piece);
         self.next_id += 1;
@@ -63,13 +66,21 @@ impl Board {
         pos.0 < self.width && pos.1 < self.height
     }
 
+    /// 該格是否可以進入（無論有無棋子）
+    pub fn is_tile_accessible(&self, pos: Position) -> bool {
+        self.in_bounds(pos) && self.tiles[pos.0][pos.1] != Tile::Blocked
+    }
+
     /// 該格是否為空（可進入 & 無棋子）
     pub fn is_tile_free(&self, pos: Position) -> bool {
         if !self.in_bounds(pos) {
             return false;
         }
-        self.tiles[pos.0][pos.1] == Tile::Empty && self.get_piece_at(pos).is_none()
-    }
+        match self.tiles[pos.0][pos.1] {
+            Tile::Blocked => false,
+            _ => self.get_piece_at(pos).is_none() && self.is_tile_accessible(pos),
+        }
+    }    
 
     /// 清除所有棋子
     pub fn clear_pieces(&mut self) {
