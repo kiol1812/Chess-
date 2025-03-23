@@ -75,6 +75,11 @@ export component AppWindow inherits Window {
 
     callback piece_clicked(index: int);
     in property <[bool]> highlights;
+    in property <int> selected_index;    // -1 表示未選取
+
+    in property <string> turn_text;
+    in property <string> score_text;
+    in property <bool> gameover: false;
 
     for tile[i] in board : GridCell {
         x: mod(i, 8)*74px;
@@ -84,8 +89,24 @@ export component AppWindow inherits Window {
         label: tile;
         highlighted: highlights[i];
         clicked => {
-            root.piece_clicked(i);
+            if (!gameover) {
+                root.piece_clicked(i);
+            } else {
+            }
         }
+    }
+    Text {
+        text: "目前回合："+(turn_text);
+        font-size: 20px;
+        x: 10px;
+        y: 600px;
+    }
+    
+    Text {
+        text: "局勢評分："+(score_text);
+        font-size: 20px;
+        x: 10px;
+        y: 630px;
     }
     Button {
         y: 600px;

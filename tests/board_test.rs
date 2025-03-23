@@ -47,3 +47,23 @@ fn test_is_tile_free() {
     assert!(!board.is_tile_free((1, 1))); // 有棋子
     assert!(board.is_tile_free((0, 0)));  // 空白格
 }
+
+#[test]
+fn test_move_and_remove_piece() {
+    let mut board = Board::new(8, 8);
+    let id = board.add_piece(Piece {
+        id: 0,
+        kind: PieceType::Pawn,
+        color: Color::White,
+        pos: (1, 1),
+    });
+
+    assert!(board.get_piece_at((1, 1)).is_some());
+
+    board.move_piece(id, (2, 2));
+    assert!(board.get_piece_at((1, 1)).is_none());
+    assert!(board.get_piece_at((2, 2)).is_some());
+
+    board.remove_piece_at((2, 2));
+    assert!(board.get_piece_at((2, 2)).is_none());
+}

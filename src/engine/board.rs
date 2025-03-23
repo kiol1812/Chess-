@@ -108,6 +108,26 @@ impl Board {
         }
         println!();
     }
+    /// 移除某格上的棋子（如果有）
+    pub fn remove_piece_at(&mut self, pos: Position) {
+        let id_to_remove = self
+            .pieces
+            .values()
+            .find(|p| p.pos == pos)
+            .map(|p| p.id);
+
+        if let Some(id) = id_to_remove {
+            self.pieces.remove(&id);
+        }
+    }
+
+    /// 將指定 ID 的棋子移動到新位置（不進行合法性檢查）
+    pub fn move_piece(&mut self, id: u32, new_pos: Position) {
+        if let Some(piece) = self.pieces.get_mut(&id) {
+            piece.pos = new_pos;
+        }
+    }
+
 }
 
 fn piece_symbol(piece: &Piece) -> char {

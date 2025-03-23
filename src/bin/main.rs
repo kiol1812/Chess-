@@ -1,15 +1,17 @@
-// Prevent console window in release build on Windows
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::rc::Rc;
+// use std::borrow::BorrowMut;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use slint::{ModelRc, VecModel, SharedString};
 
 use Chess_::engine;
-use engine::generator::generate_random_board;
 use engine::board::Board;
+use engine::types::Position;
 use engine::evaluator::evaluate_board;
+use engine::generator::generate_random_board;
+use engine::game::{GameState, TurnState, check_game_end};
 use engine::movement::get_legal_moves;
 
 slint::include_modules!();
@@ -48,62 +50,120 @@ fn main() -> Result<(), slint::PlatformError> {
     let app = AppWindow::new()?;
     let app_weak = app.as_weak();
 
-    // 建立 Rc<RefCell> 共享棋盤狀態
-    let board = Rc::new(RefCell::new(generate_random_board(8, 8, 5, 5, 5)));
+    // ✅ 建立共享狀態
+    let game_state = Rc::new(RefCell::new(GameState::new(generate_random_board(8, 8, 5, 5, 5))));
+    let selected_index: Rc<RefCell<Option<usize>>> = Rc::new(RefCell::new(None));
 
     // 🔁 註冊生成回呼
     {
-        let board = board.clone();
+        let game_state = game_state.clone();
+        let selected_index = selected_index.clone();
         app.on_generate({
             let app = app_weak.clone();
             move || {
-                let mut board = board.borrow_mut();
-                *board = generate_random_board(8, 8, 5, 5, 5);
-                board.print_board();
+                let mut game = game_state.borrow_mut();
+                *game = GameState::new(generate_random_board(8, 8, 5, 5, 5));
+                game.board.print_board();
 
-                let score = evaluate_board(&board);
+                let score = evaluate_board(&game.board);
                 println!("[GUI 評分] 分數: {}", score);
 
-                let gui_board = convert_board_to_gui(&board);
+                let gui_board = convert_board_to_gui(&game.board);
                 if let Some(app) = app.upgrade() {
+                    app.set_gameover(false);
                     app.set_board(ModelRc::new(Rc::new(VecModel::from(gui_board))));
                     app.set_highlights(ModelRc::new(Rc::new(VecModel::from(vec![false; 64]))));
+                    app.set_selected_index(-1);
+                    app.set_turn_text(SharedString::from(format!("{:?}", game.turn)));
+                    app.set_score_text(SharedString::from(format!("{}", evaluate_board(&game.board))));
                 }
+                *selected_index.borrow_mut() = None;
             }
         });
     }
 
     // 🔁 註冊棋子點擊回呼
     {
-        let board = board.clone();
+        let game_state = game_state.clone();
+        let selected_index = selected_index.clone();
         app.on_piece_clicked({
             let app = app_weak.clone();
             move |index| {
-                let board = board.borrow();
-                let (x, y) = index_to_pos(index as usize, board.width);
-                if let Some(piece) = board.get_piece_at((x, y)) {
-                    let legal_moves = get_legal_moves(&board, piece);
-                    let mut highlights = vec![false; board.width * board.height];
-                    for (x, y) in legal_moves {
-                        let idx = y * board.width + x;
-                        if idx < highlights.len() {
-                            highlights[idx] = true;
+                let mut game = game_state.borrow_mut();
+                let mut selected = selected_index.borrow_mut();
+                let (x, y) = index_to_pos(index as usize, game.board.width);
+                let pos = (x, y);
+
+                if selected.is_none() {
+                    // ✅ 選取棋子
+                    if let Some(piece) = game.board.get_piece_at(pos) {
+                        if piece.color == game.turn.as_color() {
+                            let legal = get_legal_moves(&game.board, piece);
+                            let mut highlights = vec![false; game.board.width * game.board.height];
+                            for (x, y) in legal {
+                                highlights[y * game.board.width + x] = true;
+                            }
+                            if let Some(app) = app.upgrade() {
+                                app.set_highlights(ModelRc::new(Rc::new(VecModel::from(highlights))));
+                                app.set_selected_index(index as i32);
+                            }
+                            *selected = Some(index as usize);
                         }
                     }
-                    if let Some(app) = app.upgrade() {
-                        app.set_highlights(ModelRc::new(Rc::new(VecModel::from(highlights))));
+                } else {
+                    let from_index = selected.unwrap();
+                    if from_index == (index as usize) {
+                        // ✅ 再次點選同一格 → 取消選取
+                        if let Some(app) = app.upgrade() {
+                            app.set_selected_index(-1);
+                            app.set_highlights(ModelRc::new(Rc::new(VecModel::from(vec![false; 64]))));
+                        }
+                        *selected = None;
+                        return;
+                    }
+                    // ✅ 嘗試移動
+                    let from_index = selected.unwrap();
+                    let from = index_to_pos(from_index, game.board.width);
+                    let to = index_to_pos(index as usize, game.board.width);
+
+                    match game.try_move(from, to) {
+                        Ok(_) => {
+                            let gui_board = convert_board_to_gui(&game.board);
+                            if let Some(app) = app.upgrade() {
+                                app.set_turn_text(SharedString::from(format!("{:?}", game.turn)));
+                                app.set_score_text(SharedString::from(format!("{}", evaluate_board(&game.board))));
+                                app.set_board(ModelRc::new(Rc::new(VecModel::from(gui_board))));
+                                app.set_highlights(ModelRc::new(Rc::new(VecModel::from(vec![false; 64]))));
+                                app.set_selected_index(-1);
+                            }
+                            *selected = None;
+                            if let Some(result) = check_game_end(&game.board) {
+                                println!("對局結束：{}", result);
+                                if let Some(app) = app.upgrade() {
+                                    app.set_turn_text(SharedString::from("game over"));
+                                    app.set_gameover(true);
+                                }
+                            }                            
+                        }
+                        Err(e) => {
+                            println!("非法移動：{}", e);
+                            // 可選：清除選取或保留原選擇
+                        }
                     }
                 }
             }
         });
     }
 
-    // 初始畫面載入一次
+    // ✅ 初始畫面載入
     {
-        let board = board.borrow();
-        let gui_board = convert_board_to_gui(&board);
+        let game = game_state.borrow();
+        let gui_board = convert_board_to_gui(&game.board);
         app.set_board(ModelRc::new(Rc::new(VecModel::from(gui_board))));
         app.set_highlights(ModelRc::new(Rc::new(VecModel::from(vec![false; 64]))));
+        app.set_selected_index(-1);
+        app.set_turn_text(SharedString::from(format!("{:?}", game.turn)));
+        app.set_score_text(SharedString::from(format!("{}", evaluate_board(&game.board))));
     }
 
     app.run()
