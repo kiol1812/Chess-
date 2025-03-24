@@ -76,6 +76,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     app.set_selected_index(-1);
                     app.set_turn_text(SharedString::from(format!("{:?}", game.turn)));
                     app.set_score_text(SharedString::from(format!("{}", evaluate_board(&game.board))));
+                    app.set_from_highlights(ModelRc::new(Rc::new(VecModel::from(vec![false; 64]))));
+                    app.set_to_highlights(ModelRc::new(Rc::new(VecModel::from(vec![false; 64]))));
                 }
                 *selected_index.borrow_mut() = None;
             }
@@ -134,6 +136,8 @@ fn main() -> Result<(), slint::PlatformError> {
                                 app.set_score_text(SharedString::from(format!("{}", evaluate_board(&game.board))));
                                 app.set_board(ModelRc::new(Rc::new(VecModel::from(gui_board))));
                                 app.set_highlights(ModelRc::new(Rc::new(VecModel::from(vec![false; 64]))));
+                                app.set_from_highlights(ModelRc::new(Rc::new(VecModel::from(vec![false; 64]))));
+                                app.set_to_highlights(ModelRc::new(Rc::new(VecModel::from(vec![false; 64]))));
                                 app.set_selected_index(-1);
                             }
                             *selected = None;
@@ -143,7 +147,56 @@ fn main() -> Result<(), slint::PlatformError> {
                                     app.set_turn_text(SharedString::from("game over"));
                                     app.set_gameover(true);
                                 }
-                            }                            
+                                return;
+                            }
+
+                             // ✅ 電腦（黑方）自動行動
+                            if game.turn == TurnState::Black {
+                                if let Some((from, to)) = game.try_ai_move(3) {
+                                    println!("AI move: {:?} -> {:?}", from, to);
+
+                                    let gui_board = convert_board_to_gui(&game.board);
+                                    let mut highlight_from = vec![false; game.board.width * game.board.height];
+                                    let mut highlight_to = vec![false; game.board.width * game.board.height];
+                                    let (fx, fy) = from;
+                                    highlight_from[fy * game.board.width + fx] = true;
+                                    let (tx, ty) = to;
+                                    highlight_to[ty * game.board.width + tx] = true;
+                                    if let Some(app) = app.upgrade() {
+                                        app.set_board(ModelRc::new(Rc::new(VecModel::from(gui_board))));
+                                        app.set_highlights(ModelRc::new(Rc::new(VecModel::from(vec![false; 64]))));
+                                        app.set_selected_index(-1);
+                                        app.set_turn_text(SharedString::from(format!("{:?}", game.turn)));
+                                        app.set_score_text(SharedString::from(format!("{}", evaluate_board(&game.board))));
+                                        app.set_from_highlights(ModelRc::new(Rc::new(VecModel::from(highlight_from))));
+                                        app.set_to_highlights(ModelRc::new(Rc::new(VecModel::from(highlight_to))));
+                                        // app.set_turn_text(format!("{:?}", game.turn));
+                                        // app.set_score_text(format!("{}", evaluate_board(&game.board)));
+                                    }
+
+                                    // ✅ AI 走完 → 再次檢查遊戲是否結束
+                                    if let Some(result) = check_game_end(&game.board) {
+                                        println!("遊戲結束（AI）：{}", result);
+
+                                        // let mut game = game_state.borrow_mut();
+                                        // *game = GameState::new(generate_random_board(8, 8, 5, 5, 5));
+                                        // let gui_board = convert_board_to_gui(&game.board);
+                                        if let Some(app) = app.upgrade() {
+                                            // app.set_board(ModelRc::new(Rc::new(VecModel::from(gui_board))));
+                                            // app.set_highlights(ModelRc::new(Rc::new(VecModel::from(vec![false; 64]))));
+                                            // app.set_selected_index(-1);
+                                            app.set_turn_text(SharedString::from("game over"));
+                                            app.set_gameover(true);
+                                            app.set_from_highlights(ModelRc::new(Rc::new(VecModel::from(vec![false; 64]))));
+                                            app.set_to_highlights(ModelRc::new(Rc::new(VecModel::from(vec![false; 64]))));
+                                            // app.set_turn_text(SharedString::from(format!("{:?}", game.turn)));
+                                            // app.set_score_text(SharedString::from(format!("{}", evaluate_board(&game.board))));
+                                            // app.set_turn_text(format!("{:?}", game.turn));
+                                            // app.set_score_text(format!("{}", evaluate_board(&game.board)));
+                                        }
+                                    }
+                                }
+                            }
                         }
                         Err(e) => {
                             println!("非法移動：{}", e);
@@ -164,7 +217,13 @@ fn main() -> Result<(), slint::PlatformError> {
         app.set_selected_index(-1);
         app.set_turn_text(SharedString::from(format!("{:?}", game.turn)));
         app.set_score_text(SharedString::from(format!("{}", evaluate_board(&game.board))));
+        let size = game.board.width * game.board.height;
+        app.set_from_highlights(empty_bool_vec(size));
+        app.set_to_highlights(empty_bool_vec(size));
     }
 
     app.run()
+}
+fn empty_bool_vec(size: usize) -> ModelRc<bool> {
+    ModelRc::new(Rc::new(VecModel::from(vec![false; size])))
 }

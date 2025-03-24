@@ -63,6 +63,28 @@ impl GameState {
     
         Ok(())
     }    
+
+    /// 如果是電腦回合（黑方），自動執行一步最佳走法
+    /// 回傳是否成功下棋（Some），或無合法走法（None）
+    pub fn try_ai_move(&mut self, depth: usize) -> Option<(Position, Position)> {
+        use crate::engine::minmax::choose_best_move;
+
+        if self.turn != TurnState::Black {
+            return None;
+        }
+
+        let best = choose_best_move(&self.board, Color::Black, depth)?;
+        let (from, to) = best;
+
+        let piece_info = self.board.get_piece_at(from)
+            .map(|p| (p.id, p.color))?;
+
+        self.board.remove_piece_at(to);
+        self.board.move_piece(piece_info.0, to);
+        self.turn = self.turn.switch();
+
+        Some((from, to))
+    }
 }
 
 pub fn check_game_end(board: &Board) -> Option<&'static str> {

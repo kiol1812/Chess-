@@ -6,3 +6,4 @@ pub mod utils;
 pub mod evaluator;
 pub mod generator;
 pub mod game;
+pub mod minmax;

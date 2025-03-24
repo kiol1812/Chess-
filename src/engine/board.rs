@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use super::piece::Piece;
 use super::types::{Position, Tile, PieceType::*};
 
+#[derive(Clone)]
 pub struct Board {
     pub width: usize,
     pub height: usize,

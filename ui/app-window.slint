@@ -3,6 +3,8 @@ import { Button } from "std-widgets.slint";
 component GridCell inherits Rectangle {
     in property <string> label;
     in property <bool> highlighted;
+    in property <bool> highlight_from;
+    in property <bool> highlight_to;
 
     area := TouchArea {
         width: parent.width;
@@ -21,7 +23,11 @@ component GridCell inherits Rectangle {
         return true;
     }
     background: {
-        if highlighted {
+        if highlight_from {
+            return #ffcc00; // 起點：黃色
+        } else if highlight_to {
+            return #ff8800; // 終點：橘色
+        } else if highlighted {
             return #44ff44;
         } else if label == "K" {
             return #fff;
@@ -81,6 +87,9 @@ export component AppWindow inherits Window {
     in property <string> score_text;
     in property <bool> gameover: false;
 
+    in property <[bool]> from_highlights;   // AI 起點
+    in property <[bool]> to_highlights;     // AI 終點
+
     for tile[i] in board : GridCell {
         x: mod(i, 8)*74px;
         y: floor(i/8)*74px;
@@ -88,6 +97,8 @@ export component AppWindow inherits Window {
         height: 64px;
         label: tile;
         highlighted: highlights[i];
+        highlight_from: from_highlights[i];
+        highlight_to: to_highlights[i];
         clicked => {
             if (!gameover) {
                 root.piece_clicked(i);
